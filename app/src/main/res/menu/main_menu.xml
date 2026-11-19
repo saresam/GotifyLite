@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/menu_refresh"
+        android:title="@string/menu_refresh" />
+    <item
+        android:id="@+id/menu_server"
+        android:title="@string/menu_server" />
+    <item
+        android:id="@+id/menu_battery"
+        android:title="@string/menu_battery" />
+    <item
+        android:id="@+id/menu_start"
+        android:title="@string/menu_start" />
+    <item
+        android:id="@+id/menu_stop"
+        android:title="@string/menu_stop" />
+</menu>

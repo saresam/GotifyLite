@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 中性底色，刻意避开米/沙色默认观感 -->
+    <color name="primary">#2563EB</color>
+    <color name="primary_dark">#1D4ED8</color>
+    <color name="bg">#F3F4F8</color>
+    <color name="card">#FFFFFF</color>
+    <color name="card_pressed">#F5F7FB</color>
+    <color name="border">#E7EAF0</color>
+    <color name="divider">#ECEFF4</color>
+    <color name="chip_bg">#F2F4F9</color>
+
+    <!-- 文字层级：标题 / 正文 / 次要 / 辅助 -->
+    <color name="text_primary">#14171C</color>
+    <color name="text_body">#3D444F</color>
+    <color name="text_secondary">#6B7280</color>
+    <color name="text_tertiary">#9BA2AE</color>
+
+    <color name="ok">#16A34A</color>
+    <color name="err">#DC2626</color>
+    <color name="warn">#D97706</color>
+    <color name="input_bg">#F7F8FC</color>
+    <color name="input_border">#E4E7EE</color>
+
+    <!-- 应用名胶囊标签：按优先级分档（文字色 / 底色） -->
+    <color name="chip_text_min">#6B7280</color>
+    <color name="chip_bg_min">#6B72800F</color>
+    <color name="chip_text_low">#2563EB</color>
+    <color name="chip_bg_low">#2563EB0F</color>
+    <color name="chip_text_normal">#B45309</color>
+    <color name="chip_bg_normal">#EDA4632E</color>
+    <color name="chip_text_high">#B91C1C</color>
+    <color name="chip_bg_high">#DC26261F</color>
+</resources>

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.GotifyLite" parent="android:Theme.Material.Light">
+        <item name="android:colorPrimary">@color/primary</item>
+        <item name="android:colorPrimaryDark">@color/primary_dark</item>
+        <item name="android:colorAccent">@color/primary</item>
+        <item name="android:windowBackground">@color/bg</item>
+        <item name="android:statusBarColor">@color/bg</item>
+        <item name="android:navigationBarColor">@color/bg</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+        <!-- Android 15 强制 edge-to-edge，本应用为简单工具页，选择退出以保持传统布局 -->
+        <item name="android:windowOptOutEdgeToEdgeEnforcement">true</item>
+        <item name="android:actionBarStyle">@style/Widget.ActionBar.GotifyLite</item>
+    </style>
+
+    <!-- 浅色标题栏：白底深字，与页面背景协调 -->
+    <style name="Widget.ActionBar.GotifyLite" parent="@android:style/Widget.Material.Light.ActionBar">
+        <item name="android:background">@color/card</item>
+        <item name="android:titleTextColor">@color/text_primary</item>
+        <item name="android:subtitleTextColor">@color/text_secondary</item>
+        <item name="android:elevation">2dp</item>
+        <item name="android:actionOverflowButtonStyle">@style/Widget.Overflow.GotifyLite</item>
+        <item name="android:homeAsUpIndicator">@drawable/ic_arrow_back</item>
+    </style>
+
+    <style name="Widget.Overflow.GotifyLite" parent="@android:style/Widget.Material.Light.ActionButton.Overflow">
+        <item name="android:src">@drawable/ic_menu_overflow</item>
+    </style>
+</resources>

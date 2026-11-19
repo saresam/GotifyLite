@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Gotify 轻推送</string>
+
+    <!-- 菜单 -->
+    <string name="menu_refresh">刷新消息</string>
+    <string name="menu_server">服务器设置</string>
+    <string name="menu_battery">省电设置</string>
+    <string name="menu_start">开始推送</string>
+    <string name="menu_stop">停止推送</string>
+
+    <!-- 服务器设置页 -->
+    <string name="label_url">服务器地址</string>
+    <string name="hint_url">https://push.example.com</string>
+    <string name="label_token">客户端令牌</string>
+    <string name="hint_token">网页端「客户端」里创建的令牌</string>
+    <string name="btn_save">保存并连接</string>
+    <string name="btn_test">测试连接</string>
+    <string name="server_note">令牌在网页端「客户端」创建（不是「应用」的令牌）。保存后自动开始推送；「测试连接」可验证地址和令牌。</string>
+
+    <!-- 首页 -->
+    <string name="empty_not_configured">尚未配置服务器\n点右上角菜单 → 服务器设置</string>
+    <string name="empty_no_msg">暂无消息</string>
+    <string name="filter_all">全部应用</string>
+    <string name="page_prev">上一页</string>
+    <string name="page_next">下一页</string>
+
+    <!-- 消息详情页 -->
+    <string name="detail_title">消息详情</string>
+    <string name="msg_not_found">消息不存在或已被清理</string>
+    <string name="btn_copy">复制内容</string>
+    <string name="btn_delete">删除消息</string>
+    <string name="btn_open_link">打开链接</string>
+
+    <!-- 省电设置页 -->
+    <string name="sec_battery">省电设置（HyperOS）</string>
+    <string name="battery_guide">不做轮询、不用精确闹钟：仅在收到消息或网络变化时活动，空闲时 CPU 可深度睡眠。断线重连用内存中的指数退避（1 秒 → 60 秒，带抖动），不唤醒系统。</string>
+    <string name="btn_notif">去开启</string>
+    <string name="btn_battery">去设置</string>
+    <string name="btn_autostart">去开启</string>
+    <string name="btn_app_details">应用详情</string>
+</resources>
