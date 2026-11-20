@@ -4,11 +4,8 @@
         android:id="@+id/menu_refresh"
         android:title="@string/menu_refresh" />
     <item
-        android:id="@+id/menu_server"
-        android:title="@string/menu_server" />
-    <item
-        android:id="@+id/menu_battery"
-        android:title="@string/menu_battery" />
+        android:id="@+id/menu_settings"
+        android:title="@string/menu_settings" />
     <item
         android:id="@+id/menu_start"
         android:title="@string/menu_start" />

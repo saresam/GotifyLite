@@ -1,6 +1,5 @@
 package com.gotify.lite
 
-import android.app.Activity
 import android.app.AlertDialog
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -18,7 +17,7 @@ import java.util.Locale
 import org.json.JSONObject
 
 /** 消息详情：完整标题、时间、优先级、正文全文，可复制 / 打开附带链接。 */
-class MessageDetailActivity : Activity() {
+class MessageDetailActivity : BaseActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -27,7 +26,7 @@ class MessageDetailActivity : Activity() {
         actionBar?.title = getString(R.string.detail_title)
 
         val id = intent.getLongExtra("message_id", -1L)
-        val m = parseIntentMessage() ?: if (id > 0) MessageStore(this).getById(id) else null
+        val m = parseIntentMessage() ?: if (id > 0) MessageStore.get(this).getById(id) else null
 
         val titleView = findViewById<TextView>(R.id.detail_title)
         val metaView = findViewById<TextView>(R.id.detail_meta)
@@ -69,11 +68,13 @@ class MessageDetailActivity : Activity() {
 
         btnDelete.setOnClickListener { confirmDelete(m) }
 
-        val url = m.clickUrl
+        // extras 来自外部输入：非 http/https 的 scheme 直接不显示按钮
+        val url = SafeUrl.normalized(m.clickUrl)
         if (url != null) {
             btnLink.visibility = View.VISIBLE
             btnLink.setOnClickListener {
                 runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+                    .onFailure { Toast.makeText(this, "没有可打开该链接的应用", Toast.LENGTH_SHORT).show() }
             }
         }
     }
@@ -124,8 +125,9 @@ class MessageDetailActivity : Activity() {
         Thread {
             try {
                 GotifyApi.deleteMessage(prefs.serverUrl, prefs.token, m.id)
+                // 本地库写入留在后台线程；主线程只更新通知与界面
+                MessageStore.get(this).delete(m.id)
                 runOnUiThread {
-                    MessageStore(this).delete(m.id)
                     Notifier.cancelMessage(this, m.id)
                     Toast.makeText(this, "已删除", Toast.LENGTH_SHORT).show()
                     finish()

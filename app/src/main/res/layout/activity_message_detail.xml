@@ -107,7 +107,7 @@
                 android:paddingBottom="10dp"
                 android:stateListAnimator="@null"
                 android:text="@string/btn_copy"
-                android:textColor="#FFFFFF"
+                android:textColor="@color/on_primary"
                 android:textSize="13sp" />
 
             <Button

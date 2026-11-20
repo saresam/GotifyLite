@@ -54,36 +54,12 @@ object Notifier {
         else -> 0xFFE74C3C.toInt() // 紧急：红（参考用户截图）
     }
 
-    /** 列表左侧竖条专用浅色（深色竖条在白色列表里显得太浓）。 */
-    fun barColor(priority: Int): Int = when {
-        priority < 1 -> 0xFFC4C8CF.toInt() // 静默：浅灰
-        priority < 4 -> 0xFF89B4FA.toInt() // 低：浅蓝
-        priority < 8 -> 0xFFF4C8A1.toInt() // 普通：浅橙
-        else -> 0xFFF1948A.toInt() // 紧急：浅红
-    }
-
-    /** 应用名胶囊字色（与分档语义一致，保证与各自浅底达到 AA 对比度）。 */
-    fun chipTextColor(priority: Int): Int = when {
-        priority < 1 -> 0xFF6B7280.toInt()
-        priority < 4 -> 0xFF2563EB.toInt()
-        priority < 8 -> 0xFFB45309.toInt()
-        else -> 0xFFB91C1C.toInt()
-    }
-
-    /** 应用名胶囊底色（带透明度的同色系浅底）。 */
-    fun chipBgColor(priority: Int): Int = when {
-        priority < 1 -> 0x0F6B7280
-        priority < 4 -> 0x0F2563EB
-        priority < 8 -> 0x2EEDA463
-        else -> 0x1FDC2626
-    }
-
     /** 与原版一致：Gotify 优先级 <=0 静默、1-3 低、4-7 普通、>=8 紧急。 */
-    fun channelForPriority(priority: Int): String = when {
-        priority < 1 -> CH_MIN
-        priority < 4 -> CH_LOW
-        priority < 8 -> CH_DEFAULT
-        else -> CH_HIGH
+    fun channelForPriority(priority: Int): String = when (Palette.tier(priority)) {
+        Palette.Tier.MIN -> CH_MIN
+        Palette.Tier.LOW -> CH_LOW
+        Palette.Tier.NORMAL -> CH_DEFAULT
+        Palette.Tier.HIGH -> CH_HIGH
     }
 
     /** 前台服务常驻通知（低优先级、无声音、不可滑动）。 */
@@ -104,8 +80,8 @@ object Notifier {
 
     /** 推送一条消息通知，并刷新分组摘要。 */
     fun postMessage(ctx: Context, m: GotifyMessage, appName: String) {
-        // extras["android::action"]["onReceive"]["intentUrl"]：收到即打开（与原版行为一致）
-        m.onReceiveIntentUrl?.let { url ->
+        // extras 属于外部输入：只放行 http/https（见 SafeUrl），其余 scheme 一律丢弃
+        SafeUrl.normalized(m.onReceiveIntentUrl)?.let { url ->
             runCatching {
                 ctx.startActivity(
                     Intent(Intent.ACTION_VIEW, Uri.parse(url))
@@ -115,10 +91,11 @@ object Notifier {
         }
 
         // extras["client::notification"]["click"]["url"]：点击通知打开该 URL，否则打开应用内历史
-        val contentIntent: PendingIntent = if (m.clickUrl != null) {
+        val clickUrl = SafeUrl.normalized(m.clickUrl)
+        val contentIntent: PendingIntent = if (clickUrl != null) {
             PendingIntent.getActivity(
                 ctx, 2,
-                Intent(Intent.ACTION_VIEW, Uri.parse(m.clickUrl))
+                Intent(Intent.ACTION_VIEW, Uri.parse(clickUrl))
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
@@ -157,7 +134,8 @@ object Notifier {
             ctx, 4, Intent(ctx, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE
         )
         val text = "断线期间收到 $count 条消息"
-        val b = Notification.Builder(ctx, CH_DEFAULT)
+        // 聚合通知本身不是“一条新消息”，走低优先级通道，不响铃不震动
+        val b = Notification.Builder(ctx, CH_LOW)
             .setSmallIcon(R.drawable.ic_stat_push)
             .setContentTitle(ctx.getString(R.string.app_name))
             .setContentText(text)

@@ -63,6 +63,7 @@
             android:layout_marginStart="6dp"
             android:background="@drawable/bg_spinner"
             android:dropDownHorizontalOffset="0dp"
+            android:dropDownWidth="176dp"
             android:dropDownVerticalOffset="4dp"
             android:popupBackground="@drawable/bg_spinner_popup"
             android:spinnerMode="dropdown" />
@@ -140,7 +141,7 @@
             android:paddingTop="8dp"
             android:paddingBottom="8dp"
             android:stateListAnimator="@animator/btn_press_scale"
-            android:text="上一页"
+            android:text="@string/page_prev"
             android:textColor="@color/text_secondary"
             android:textSize="13sp" />
 
@@ -170,7 +171,7 @@
             android:paddingTop="8dp"
             android:paddingBottom="8dp"
             android:stateListAnimator="@animator/btn_press_scale"
-            android:text="下一页"
+            android:text="@string/page_next"
             android:textColor="@color/text_secondary"
             android:textSize="13sp" />
     </LinearLayout>

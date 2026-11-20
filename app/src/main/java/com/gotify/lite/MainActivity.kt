@@ -1,17 +1,20 @@
 package com.gotify.lite
 
-import android.app.Activity
+import android.Manifest
+import android.app.NotificationManager
 import android.content.ClipData
 import android.content.ClipboardManager
-import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.LayerDrawable
 import android.graphics.drawable.StateListDrawable
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.provider.Settings
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
@@ -33,7 +36,7 @@ import org.json.JSONObject
  * - 右上角菜单：刷新消息 / 服务器设置 / 省电设置 / 开始推送 / 停止推送
  * - 收到新消息时列表自动更新（无需手动刷新）
  */
-class MainActivity : Activity() {
+class MainActivity : BaseActivity() {
 
     private lateinit var prefs: Prefs
     private lateinit var statusText: TextView
@@ -50,7 +53,6 @@ class MainActivity : Activity() {
     private var lastUpdateMs = 0L
     private var appList: List<Pair<Long, String>> = emptyList()
     private var filterAppId = -1L
-    private var filterInitializing = true
     private var barWidthPx = 0
     private var barLeftPx = 0
     private var barInsetPx = 0
@@ -59,6 +61,9 @@ class MainActivity : Activity() {
     private var strokePx = 0
     private var normalCardColor = 0
     private var pressedCardColor = 0
+
+    /** 列表时间戳格式化器（只在 UI 线程用，缓存一份避免 getView 里反复 new）。 */
+    private val timeFormat = SimpleDateFormat("MM-dd HH:mm", Locale.CHINA)
 
     private val handler = Handler(Looper.getMainLooper())
     private val statusTicker = object : Runnable {
@@ -71,6 +76,10 @@ class MainActivity : Activity() {
     private var history: List<GotifyMessage> = emptyList()
     private var lastStoreVersion = -1
     private var historyLoaded = false
+    /** 后台查库的重入保护：catch-up 一次写入上百条时，避免每个 tick 都排队查库。 */
+    private var storeReloading = false
+    /** 当前界面所使用的外观模式；与 prefs 不一致说明在设置页改过，需要重建。 */
+    private var appliedThemeMode = -1
 
     // 分页：每页 30 条，已加载的页缓存在 pageCache；向后翻页用 since 增量拉取
     private val pageSize = 30
@@ -90,6 +99,7 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         prefs = Prefs(this)
+        appliedThemeMode = prefs.themeMode
 
         statusText = findViewById(R.id.status_text)
         statusDot = findViewById(R.id.status_dot)
@@ -142,17 +152,27 @@ class MainActivity : Activity() {
                 true
             }
 
-        // 应用筛选：先读持久化的选择 + 本地完底列表，再异步刷新应用列表
+        // 应用筛选：先读持久化的选择 + 本地兜底列表（后台查），再异步刷新服务器应用列表
         filterAppId = prefs.filterAppId
-        appList = MessageStore(this).apps()
         setupFilter()
+        loadLocalApps()
         loadApps()
+
+        // 通知权限：Android 13+ 是运行时权限，不申请就完全收不到通知（系统默认静默拒绝）
+        statusText.setOnClickListener { openNotificationSettings() }
+        ensureNotificationPermission()
 
         handleMessageIntent(intent)
     }
 
     override fun onResume() {
         super.onResume()
+        // 在设置页改过外观模式：重建首页让新配色生效
+        if (appliedThemeMode != prefs.themeMode) {
+            appliedThemeMode = prefs.themeMode
+            applyThemeChange()
+            return
+        }
         refreshStatus()
         // 从「服务器设置」返回时地址或令牌可能已变：已加载的旧列表属于旧服务器，必须重载
         val cfg = prefs.configKey
@@ -162,8 +182,9 @@ class MainActivity : Activity() {
             pageCache.clear()
             currentPage = 0
             hasMore = false
-            appList = MessageStore(this).apps()
+            appList = emptyList()
             setupFilter()
+            loadLocalApps()
             loadApps()
         }
         lastStoreVersion = MessageStore.version
@@ -191,6 +212,61 @@ class MainActivity : Activity() {
         super.onNewIntent(intent)
         setIntent(intent)
         handleMessageIntent(intent)
+    }
+
+    // ---------- 通知权限 ----------
+
+    /** 系统层面（运行时权限）与应用内开关（系统设置里关掉通知）都要检查。 */
+    private fun notificationsEnabled(): Boolean {
+        if (NotifPermission.needsRuntimePermission(Build.VERSION.SDK_INT) &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            return false
+        }
+        return (getSystemService(NOTIFICATION_SERVICE) as NotificationManager)
+            .areNotificationsEnabled()
+    }
+
+    /** 首次进入时弹一次系统申请框；用户拒绝过就只在状态条上提示，点状态条去系统设置。 */
+    private fun ensureNotificationPermission() {
+        if (NotifPermission.shouldPrompt(
+                Build.VERSION.SDK_INT, notificationsEnabled(), prefs.notifPermissionAsked
+            )
+        ) {
+            prefs.notifPermissionAsked = true
+            runCatching {
+                requestPermissions(
+                    arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+                    NotifPermission.REQ_CODE
+                )
+            }
+        }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == NotifPermission.REQ_CODE) {
+            if (!notificationsEnabled()) {
+                toast("未获得通知权限，收不到新消息通知；点状态条可去系统设置开启")
+            }
+            refreshStatus()
+        }
+    }
+
+    /** 跳到本应用的通知设置页，让用户自己打开（系统设置里还能看到“已拒绝”记录）。 */
+    private fun openNotificationSettings() {
+        if (notificationsEnabled()) return
+        runCatching {
+            startActivity(
+                Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                    .putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
+            )
+        }
     }
 
     /** 通知点击带 message_id 时，直达消息详情。 */
@@ -223,8 +299,7 @@ class MainActivity : Activity() {
                 toast("正在刷新…")
                 reloadFirstPage()
             }
-            R.id.menu_server -> startActivity(Intent(this, ServerSettingsActivity::class.java))
-            R.id.menu_battery -> startActivity(Intent(this, BatterySettingsActivity::class.java))
+            R.id.menu_settings -> startActivity(Intent(this, SettingsActivity::class.java))
             R.id.menu_start -> {
                 if (!prefs.isConfigured) {
                     toast("请先在「服务器设置」里填写地址和令牌")
@@ -254,25 +329,8 @@ class MainActivity : Activity() {
         val adapter = ArrayAdapter(this, R.layout.spinner_item, names)
         adapter.setDropDownViewResource(R.layout.spinner_dropdown_item)
         filterSpinner.adapter = adapter
-        // 原生 Spinner 弹窗默认按最宽条目算宽度，左边缘会与按钮错位；
-        // 反射把宽度固定为「按钮宽度」和「最宽条目宽度」的较大值，
-        // 既与按钮左对齐，又不会截断较长的应用名。
-        runCatching {
-            val field = android.widget.AbsSpinner::class.java
-                .getDeclaredField("mPopup")
-            field.isAccessible = true
-            val popup = field.get(filterSpinner)
-            val setWidth = popup.javaClass.getDeclaredMethod("setWidth", Int::class.java)
-            setWidth.isAccessible = true
-            val widest = names.maxOfOrNull { it.length } ?: 0
-            filterSpinner.post {
-                if (filterSpinner.width > 0) {
-                    val textPx = (widest * 13 * resources.displayMetrics.density).toInt() + 60
-                    val w = maxOf(filterSpinner.width, textPx)
-                    runCatching { setWidth.invoke(popup, w) }
-                }
-            }
-        }
+        // 弹窗宽度用布局里的 android:dropDownWidth 声明式固定（原先靠反射 AbsSpinner.mPopup
+        // 调 setWidth，属于非 SDK 接口，随时可能在高版本上失效）
         filterSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(
                 parent: AdapterView<*>?,
@@ -280,28 +338,38 @@ class MainActivity : Activity() {
                 position: Int,
                 id: Long
             ) {
-                // 重建下拉框时的首次回调直接跳过，避免重复加载
-                if (filterInitializing) {
-                    filterInitializing = false
-                    return
-                }
-                filterAppId = if (position == 0) {
+                val newId = if (position == 0) {
                     -1L
                 } else {
                     appList.getOrNull(position - 1)?.first ?: -1L
                 }
-                prefs.filterAppId = filterAppId
+                // 只有“筛选条件真的变了”才重载：重建 adapter 与 setSelection 都会回调到这里，
+                // 但解析出的 appId 与当前一致，按值比较即可跳过——不再需要易卡住的初始化标记
+                if (newId == filterAppId) return
+                filterAppId = newId
+                prefs.filterAppId = newId
                 reloadFirstPage()
             }
 
             override fun onNothingSelected(parent: AdapterView<*>?) {}
         }
-        filterInitializing = true
         val pos = appList.indexOfFirst { it.first == filterAppId }
         filterSpinner.setSelection(if (pos >= 0) pos + 1 else 0)
     }
 
-    /** 从服务器拉取应用列表；失败时保留本地完底列表，不提示。 */
+    /** 本地库里出现过的应用（离线兜底）：后台查，避免 GROUP BY 在主线程跑。 */
+    private fun loadLocalApps() {
+        Thread {
+            val list = MessageStore.get(this).apps()
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                appList = list
+                setupFilter()
+            }
+        }.start()
+    }
+
+    /** 从服务器拉取应用列表；失败时保留本地兜底列表，不提示。 */
     private fun loadApps() {
         if (!prefs.isConfigured) return
         Thread {
@@ -357,7 +425,7 @@ class MainActivity : Activity() {
                     showCurrentPage()
                 }
             } catch (e: Exception) {
-                val local = MessageStore(this).latest(pageSize, appId)
+                val local = MessageStore.get(this).latest(pageSize, appId)
                 runOnUiThread {
                     loadingPage = false
                     historyLoaded = true
@@ -414,7 +482,7 @@ class MainActivity : Activity() {
     private fun syncToStore(msgs: List<GotifyMessage>) {
         if (msgs.isEmpty()) return
         val nameOf: (Long) -> String? = { id -> appList.firstOrNull { it.first == id }?.second }
-        MessageStore(this).insertAll(msgs, nameOf)
+        MessageStore.get(this).insertAll(msgs, nameOf)
     }
 
     /** 服务器返回的消息补齐应用名（来自应用列表映射，取不到时保持 null）。 */
@@ -567,17 +635,25 @@ class MainActivity : Activity() {
         }.start()
     }
 
-    /** 新消息到达（本地库版本变化）：更新第一页缓存；停留第一页时无感刷新。 */
+    /** 新消息到达（本地库版本变化）：后台查库后更新第一页缓存；停留第一页时无感刷新。 */
     private fun reloadFromStore() {
+        if (storeReloading) return
+        storeReloading = true
         val appId = if (filterAppId > 0) filterAppId else null
-        val first = MessageStore(this).latest(pageSize, appId)
-        if (pageCache.isEmpty()) {
-            pageCache.add(first)
-            currentPage = 0
-        } else {
-            pageCache[0] = first
-        }
-        if (currentPage == 0) showCurrentPage()
+        Thread {
+            val first = MessageStore.get(this).latest(pageSize, appId)
+            runOnUiThread {
+                storeReloading = false
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                if (pageCache.isEmpty()) {
+                    pageCache.add(first)
+                    currentPage = 0
+                } else {
+                    pageCache[0] = first
+                }
+                if (currentPage == 0) showCurrentPage()
+            }
+        }.start()
     }
 
     private fun showCurrentPage() {
@@ -635,9 +711,16 @@ class MainActivity : Activity() {
     }
 
     private fun refreshStatus() {
-        statusText.text =
-            if (!prefs.isConfigured) "未配置服务器（右上角菜单 → 服务器设置）" else PushService.status
+        val base = if (!prefs.isConfigured) {
+            "未配置服务器（右上角菜单 → 设置）"
+        } else {
+            PushService.status
+        }
+        // 没有通知权限时这条推送链路的产出等于 0，必须让用户看见
+        val permHint = NotifPermission.statusHint(Build.VERSION.SDK_INT, notificationsEnabled())
+        statusText.text = if (permHint != null) "$base · $permHint" else base
         val color = when {
+            permHint != null -> getColor(R.color.err)
             PushService.connected -> getColor(R.color.ok)
             PushService.status.contains("令牌") || PushService.status.contains("错误") ->
                 getColor(R.color.err)
@@ -647,7 +730,7 @@ class MainActivity : Activity() {
         updateLastUpdateText()
 
         // 前台服务收到新消息时，本地缓存版本号变化 → 无网络开销地刷新列表
-        if (MessageStore.version != lastStoreVersion) {
+        if (!storeReloading && MessageStore.version != lastStoreVersion) {
             lastStoreVersion = MessageStore.version
             reloadFromStore()
         }
@@ -682,7 +765,7 @@ class MainActivity : Activity() {
         return when {
             now - ms < 60_000 -> "刚刚"
             now - ms < 3_600_000 -> "${(now - ms) / 60_000} 分钟前"
-            else -> SimpleDateFormat("MM-dd HH:mm", Locale.CHINA).format(Date(ms))
+            else -> timeFormat.format(Date(ms))
         }
     }
 
@@ -711,10 +794,11 @@ class MainActivity : Activity() {
             // 应用名胶囊：按优先级取字色/底色（替代纯文字里的「应用 #N · 优先级 N」）
             val chip = v.findViewById<TextView>(R.id.msg_chip)
             chip.text = m.appName ?: "应用 #${m.appId}"
-            val txtColor = Notifier.chipTextColor(m.priority)
+            // 颜色按当前主题（浅/深）从资源取，深色模式下有另一套值
+            val txtColor = getColor(Palette.chipTextRes(m.priority))
             chip.setTextColor(txtColor)
             val chipBg = GradientDrawable().apply {
-                setColor(Notifier.chipBgColor(m.priority))
+                setColor(getColor(Palette.chipBgRes(m.priority)))
                 cornerRadius = chipRadiusPx.toFloat()
             }
             chip.background = chipBg
@@ -730,12 +814,12 @@ class MainActivity : Activity() {
             prioView.setTextColor(txtColor)
 
             // 卡片底色 + 左侧优先级色条（色条不越过卡片圆角，用 inset 预留内边距）
-            val barColor = Notifier.barColor(m.priority)
+            val barColor = getColor(Palette.barRes(m.priority))
             fun cardLayer(cardColor: Int): LayerDrawable {
                 val card = GradientDrawable().apply {
                     setColor(cardColor)
                     cornerRadius = cardRadiusPx.toFloat()
-                    setStroke(strokePx, 0xFFE7EAF0.toInt())
+                    setStroke(strokePx, getColor(R.color.border))
                 }
                 val bar = GradientDrawable().apply {
                     setColor(barColor)

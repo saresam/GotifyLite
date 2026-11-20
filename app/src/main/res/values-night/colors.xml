@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 深色主题配色。名字必须与 values/colors.xml 完全一致，布局与 drawable 才能无缝切换。 -->
+<resources>
+
+    <!-- 主色与按钮：深色下仍用蓝色主色，白字对比度足够；禁用态压暗 -->
+    <color name="primary">#2563EB</color>
+    <color name="primary_dark">#1D4ED8</color>
+    <color name="primary_disabled">#33415C</color>
+    <color name="on_primary">#FFFFFF</color>
+
+    <!-- 表面层级：bg < card < card_pressed -->
+    <color name="bg">#0F1216</color>
+    <color name="card">#181C23</color>
+    <color name="card_pressed">#222834</color>
+    <color name="border">#2A313C</color>
+    <color name="divider">#232A34</color>
+    <color name="surface_pressed_stroke">#39414F</color>
+
+    <!-- 文字层级：标题 / 正文 / 次要 / 辅助 -->
+    <color name="text_primary">#E9EDF3</color>
+    <color name="text_body">#C2C9D4</color>
+    <color name="text_secondary">#98A1B0</color>
+    <color name="text_tertiary">#6E7787</color>
+    <color name="text_disabled">#5C6472</color>
+
+    <!-- 状态色：深色下提高亮度以保证可读 -->
+    <color name="ok">#4ADE80</color>
+    <color name="err">#F87171</color>
+    <color name="warn">#FBBF24</color>
+
+    <!-- 输入框与下拉框 -->
+    <color name="input_bg">#151A21</color>
+    <color name="input_border">#2A313C</color>
+    <color name="chip_bg">#212831</color>
+    <color name="dropdown_pressed">#262E3C</color>
+    <color name="dropdown_checked">#1F2530</color>
+
+    <!-- 标题栏图标 -->
+    <color name="icon">#9AA3B2</color>
+
+    <!-- 应用名胶囊：文字提亮，底色用低透明度同色系 -->
+    <color name="chip_text_min">#9CA3AF</color>
+    <color name="chip_bg_min">#1F9CA3AF</color>
+    <color name="chip_text_low">#93B4FF</color>
+    <color name="chip_bg_low">#1F93B4FF</color>
+    <color name="chip_text_normal">#F0B27A</color>
+    <color name="chip_bg_normal">#33EDA463</color>
+    <color name="chip_text_high">#F1948A</color>
+    <color name="chip_bg_high">#33DC2626</color>
+
+    <!-- 列表左侧优先级色条：深色下改用饱和色，浅色调在暗背景上会发灰 -->
+    <color name="prio_bar_min">#4B5563</color>
+    <color name="prio_bar_low">#3B82F6</color>
+    <color name="prio_bar_normal">#D97706</color>
+    <color name="prio_bar_high">#EF4444</color>
+</resources>

@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 深色主题：同名覆盖 values/themes.xml 里的定义，-night 配置下自动生效。
+     Activity 通过 BaseActivity 强制 uiMode，因此用户在系统是浅色时选「深色」也能命中这里。 -->
+<resources>
+
+    <style name="Theme.GotifyLite" parent="android:Theme.Material">
+        <item name="android:colorPrimary">@color/primary</item>
+        <item name="android:colorPrimaryDark">@color/bg</item>
+        <item name="android:colorAccent">@color/primary</item>
+        <item name="android:windowBackground">@color/bg</item>
+        <item name="android:statusBarColor">@color/bg</item>
+        <item name="android:navigationBarColor">@color/bg</item>
+        <!-- 深色背景 → 状态栏/导航栏图标要用浅色 -->
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:windowOptOutEdgeToEdgeEnforcement">true</item>
+        <!-- 外观由应用自己控制，禁用系统“强制深色”，否则 Android 10-12 会把浅色主题再压暗一层 -->
+        <item name="android:forceDarkAllowed">false</item>
+        <item name="android:actionBarStyle">@style/Widget.ActionBar.GotifyLite</item>
+    </style>
+
+    <style name="Widget.ActionBar.GotifyLite" parent="@android:style/Widget.Material.ActionBar">
+        <item name="android:background">@color/card</item>
+        <item name="android:titleTextColor">@color/text_primary</item>
+        <item name="android:subtitleTextColor">@color/text_secondary</item>
+        <item name="android:elevation">2dp</item>
+        <item name="android:actionOverflowButtonStyle">@style/Widget.Overflow.GotifyLite</item>
+        <item name="android:homeAsUpIndicator">@drawable/ic_arrow_back</item>
+    </style>
+
+    <style name="Widget.Overflow.GotifyLite" parent="@android:style/Widget.Material.ActionButton.Overflow">
+        <item name="android:src">@drawable/ic_menu_overflow</item>
+    </style>
+</resources>

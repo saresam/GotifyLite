@@ -36,6 +36,12 @@ class PushService : Service() {
         private const val ACTION_STOP = "com.gotify.lite.action.STOP"
         private const val MAX_BACKOFF_MS = 60_000L
 
+        /** 断线补收一次拉取的消息条数上限（同时也是“重启后能补多久”的窗口）。 */
+        private const val CATCHUP_LIMIT = 100
+
+        /** 补收条数超过该值时发一条聚合通知，避免一次刷屏。 */
+        private const val CATCHUP_DETAIL_MAX = 5
+
         @Volatile
         var status: String = "未启动"
             private set
@@ -73,9 +79,10 @@ class PushService : Service() {
     private val executor = Executors.newSingleThreadExecutor()
     private var backoffMs = 1000L
     private var reconnectAttempts = 0
+    /** 已确认收到过的最大消息 id；-1 表示基准尚未确立。启动时从持久化恢复。 */
     private var lastMsgId = -1L
-    private var missedInit = false
-    private val appNames = HashMap<Long, String>()
+    /** 应用 id→名称；executor 线程会读、主线程会写，必须用并发容器。 */
+    private val appNames = java.util.concurrent.ConcurrentHashMap<Long, String>()
     private var stopping = false
 
     private val networkCallback = object : ConnectivityManager.NetworkCallback() {
@@ -111,8 +118,10 @@ class PushService : Service() {
             return START_NOT_STICKY
         }
         running.set(true)
+        // 基准必须从持久化恢复：进程被杀、开机重启、JobScheduler 拉起之后，
+        // 只有拿到持久化基准才能把停机期间漏掉的消息补回来。
+        lastMsgId = prefs.lastMsgId
         startForegroundCompat()
-        if (prefs.lastMsgId < 0) initLastMsgId()
         connectIfNeeded()
         return START_STICKY
     }
@@ -165,7 +174,7 @@ class PushService : Service() {
                         setStatus("已连接")
                         ReconnectJobService.cancel(this@PushService)
                         fetchApps()
-                        fetchMissed()
+                        syncCatchUp()
                     }
                 }
 
@@ -221,8 +230,12 @@ class PushService : Service() {
             prefs.lastMsgId = lastMsgId
         }
         val appName = appNames[msg.appId]
-        MessageStore(this).insert(msg, appName)
-        Notifier.postMessage(this, msg, appName ?: "应用 #${msg.appId}")
+        // 落库放到 executor：主线程只做 O(1) 的基准更新与通知投递
+        executor.execute {
+            runCatching { MessageStore.get(this).insert(msg, appName) }
+                .onFailure { Log.w(TAG, "insert failed: ${it.message}") }
+            Notifier.postMessage(this, msg, appName ?: "应用 #${msg.appId}")
+        }
     }
 
     /** 拉取应用 id->名称 映射（用于通知里显示应用名）。 */
@@ -245,48 +258,58 @@ class PushService : Service() {
         }
     }
 
-    /** 首次启动：记录服务器上最新消息 id，作为断线补收的基准。 */
-    private fun initLastMsgId() {
+    /**
+     * 断线补收：以持久化的基准 id 为准，把断线（含进程被杀、开机重启）期间错过的消息补回来。
+     *
+     * 三个关键行为都由 [CatchUpPolicy] 决定并用单元测试锁住：
+     * - 基准未知（-1，首次使用）：只“静默确立基准”，绝不把服务器上的历史当新消息推送；
+     * - 基准已知：只补 id 大于基准的消息，按 id 升序通知；
+     * - 服务器 id 空间倒退：重置基准，避免之后的消息被永久判为“已读”。
+     *
+     * 拉取失败时**不写入任何基准值**并等下次重连重试——旧实现在失败时把基准写成 0，
+     * 会让下一次补收把最近 100 条历史全部当新消息轰炸一遍。
+     */
+    private fun syncCatchUp() {
+        val base = lastMsgId
+        val url = prefs.serverUrl
+        val token = prefs.token
         executor.execute {
-            var id = 0L
-            try {
-                id = GotifyApi.messages(prefs.serverUrl, prefs.token, 1).firstOrNull()?.id ?: 0
+            val fetched = try {
+                GotifyApi.messages(url, token, CATCHUP_LIMIT)
             } catch (e: Exception) {
-                Log.w(TAG, "init lastMsgId failed: ${e.message}")
+                Log.w(TAG, "catch-up failed, keep base=$base: ${e.message}")
+                return@execute
             }
-            prefs.lastMsgId = id
+            val plan = CatchUpPolicy.plan(base, fetched)
+            if (stopping) return@execute
+            // 落库在后台线程完成（批量写 + 一次修剪），通知与状态更新回主线程
+            if (plan.missed.isNotEmpty()) {
+                if (plan.missed.size > CATCHUP_DETAIL_MAX) {
+                    MessageStore.get(this).insertAll(plan.missed) { appNames[it] }
+                } else {
+                    plan.missed.forEach { MessageStore.get(this).insert(it, appNames[it.appId]) }
+                }
+            }
             handler.post {
-                lastMsgId = id
-                missedInit = true
-            }
-        }
-    }
-
-    /** 重连成功后，补通知断线期间错过的消息。 */
-    private fun fetchMissed() {
-        if (!missedInit) return
-        executor.execute {
-            try {
-                val msgs = GotifyApi.messages(prefs.serverUrl, prefs.token, 100)
-                val missed = msgs.filter { it.id > lastMsgId }.sortedBy { it.id }
-                if (missed.isNotEmpty()) {
-                    handler.post {
-                        if (missed.size > 5) {
-                            missed.forEach {
-                                if (it.id > lastMsgId) {
-                                    lastMsgId = it.id
-                                    prefs.lastMsgId = it.id
-                                }
-                                MessageStore(this).insert(it, appNames[it.appId])
-                            }
-                            Notifier.postMissed(this, missed.size)
-                        } else {
-                            missed.forEach { onGotifyMessage(it) }
-                        }
+                if (stopping) return@post
+                if (plan.serverReset) {
+                    Log.w(TAG, "server message ids went backwards, base reset to ${plan.baseId}")
+                    setStatus("服务器消息 id 已重置，已重新对齐")
+                }
+                if (plan.baseId != lastMsgId) {
+                    lastMsgId = plan.baseId
+                    prefs.lastMsgId = plan.baseId
+                }
+                if (plan.missed.isEmpty()) return@post
+                if (plan.missed.size > CATCHUP_DETAIL_MAX) {
+                    Notifier.postMissed(this@PushService, plan.missed.size)
+                } else {
+                    plan.missed.forEach {
+                        Notifier.postMessage(
+                            this@PushService, it, appNames[it.appId] ?: "应用 #${it.appId}"
+                        )
                     }
                 }
-            } catch (e: Exception) {
-                Log.w(TAG, "fetch missed failed: ${e.message}")
             }
         }
     }
@@ -315,7 +338,8 @@ class PushService : Service() {
         prefs.enabled = false
         connected = false
         status = "已停止"
-        stream?.close()
+        // cancel 而不是 close：服务马上要销毁了，不必等对端回 close 帧
+        stream?.cancel()
         stream = null
         ReconnectJobService.cancel(this)
         stopForeground(STOP_FOREGROUND_REMOVE)
@@ -324,7 +348,7 @@ class PushService : Service() {
 
     override fun onDestroy() {
         handler.removeCallbacksAndMessages(null)
-        stream?.close()
+        stream?.cancel()
         stream = null
         connected = false
         runCatching {

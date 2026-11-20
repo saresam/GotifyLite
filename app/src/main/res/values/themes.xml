@@ -11,6 +11,8 @@
         <item name="android:windowLightNavigationBar">true</item>
         <!-- Android 15 强制 edge-to-edge，本应用为简单工具页，选择退出以保持传统布局 -->
         <item name="android:windowOptOutEdgeToEdgeEnforcement">true</item>
+        <!-- 外观由应用自己控制，禁用系统“强制深色”，否则 Android 10-12 会把浅色主题再压暗一层 -->
+        <item name="android:forceDarkAllowed">false</item>
         <item name="android:actionBarStyle">@style/Widget.ActionBar.GotifyLite</item>
     </style>
 

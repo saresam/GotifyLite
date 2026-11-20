@@ -10,6 +10,9 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
+    <!-- 明文流量必须允许：大量用户把 gotify/server 跑在局域网 http 上，不允许就完全不可用。
+         风险由界面承担——服务器地址是 http 时，设置页与保存结果都会明确提示
+         「令牌与消息不加密传输」。 -->
     <application
         android:name=".App"
         android:allowBackup="false"
@@ -31,12 +34,9 @@
         </activity>
 
         <activity
-            android:name=".ServerSettingsActivity"
+            android:name=".SettingsActivity"
             android:exported="false"
             android:windowSoftInputMode="adjustResize" />
-        <activity
-            android:name=".BatterySettingsActivity"
-            android:exported="false" />
         <activity
             android:name=".MessageDetailActivity"
             android:exported="false" />

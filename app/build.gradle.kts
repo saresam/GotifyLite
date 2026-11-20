@@ -25,8 +25,8 @@ android {
         applicationId = "com.gotify.lite"
         minSdk = 26
         targetSdk = 35
-        versionCode = 25
-        versionName = "3.4"
+        versionCode = 29
+        versionName = "3.8"
     }
 
     signingConfigs {
@@ -62,6 +62,33 @@ android {
         }
     }
 }
+
+/**
+ * 出包自检：CHANGELOG.md 里必须有当前 versionName 的小节。
+ *
+ * 目的只有一个——**不许忘记升版本**。升了版本却没写变更、或者改了代码却没升版本，
+ * 都会在 assembleRelease 时直接失败，而不是产出一个“装了两份但分不清先后”的包。
+ * 升版本用 tools/bump-version.sh。
+ */
+val verifyVersion = tasks.register("verifyVersion") {
+    val changelogFile = rootProject.file("CHANGELOG.md")
+    val currentVersion = android.defaultConfig.versionName ?: ""
+    doLast {
+        if (!changelogFile.exists()) {
+            throw GradleException("缺少 CHANGELOG.md，无法判断版本是否已登记")
+        }
+        val text = changelogFile.readText()
+        if (!text.contains("## $currentVersion")) {
+            throw GradleException(
+                "CHANGELOG.md 里没有 $currentVersion 的条目：" +
+                    "请先运行 tools/bump-version.sh 升版本，并补写这一版的变更记录"
+            )
+        }
+        logger.lifecycle("版本自检通过：$currentVersion（versionCode ${android.defaultConfig.versionCode}）")
+    }
+}
+
+tasks.matching { it.name == "assembleRelease" }.configureEach { dependsOn(verifyVersion) }
 
 dependencies {
     // 唯一第三方依赖：WebSocket + HTTP。无 androidx / play-services / 图片加载 / markdown 等重库。

@@ -6,29 +6,49 @@
     <color name="bg">#F3F4F8</color>
     <color name="card">#FFFFFF</color>
     <color name="card_pressed">#F5F7FB</color>
-    <color name="border">#E7EAF0</color>
+    <color name="border">#E0E5ED</color>
     <color name="divider">#ECEFF4</color>
     <color name="chip_bg">#F2F4F9</color>
 
     <!-- 文字层级：标题 / 正文 / 次要 / 辅助 -->
     <color name="text_primary">#14171C</color>
     <color name="text_body">#3D444F</color>
-    <color name="text_secondary">#6B7280</color>
-    <color name="text_tertiary">#9BA2AE</color>
+    <color name="text_secondary">#59616F</color>
+    <color name="text_tertiary">#6B7280</color>
+    <!-- 禁用态文字：比 tertiary 再淡一档，用来区分“点不动”的按钮 -->
+    <color name="text_disabled">#9AA2B0</color>
 
     <color name="ok">#16A34A</color>
     <color name="err">#DC2626</color>
-    <color name="warn">#D97706</color>
+    <color name="warn">#B45309</color>
     <color name="input_bg">#F7F8FC</color>
     <color name="input_border">#E4E7EE</color>
 
     <!-- 应用名胶囊标签：按优先级分档（文字色 / 底色） -->
     <color name="chip_text_min">#6B7280</color>
-    <color name="chip_bg_min">#6B72800F</color>
+    <color name="chip_bg_min">#0F6B7280</color>
     <color name="chip_text_low">#2563EB</color>
-    <color name="chip_bg_low">#2563EB0F</color>
-    <color name="chip_text_normal">#B45309</color>
-    <color name="chip_bg_normal">#EDA4632E</color>
+    <color name="chip_bg_low">#0F2563EB</color>
+    <color name="chip_text_normal">#A94E08</color>
+    <color name="chip_bg_normal">#2EEDA463</color>
     <color name="chip_text_high">#B91C1C</color>
-    <color name="chip_bg_high">#DC26261F</color>
+    <color name="chip_bg_high">#1FDC2626</color>
+
+    <!-- 以下颜色在 values-night/colors.xml 里有深色对应值：
+         布局与 drawable 只引用这些名字，切换主题时自动跟随 -->
+    <!-- 主色按钮上的文字（两种主题都是白字） -->
+    <color name="on_primary">#FFFFFF</color>
+    <color name="primary_disabled">#B8C6E0</color>
+    <!-- 按压态卡片描边 -->
+    <color name="surface_pressed_stroke">#DFE4ED</color>
+    <!-- 下拉弹窗行 -->
+    <color name="dropdown_pressed">#EEF2FF</color>
+    <color name="dropdown_checked">#F2F5FC</color>
+    <!-- 标题栏图标（返回/溢出菜单） -->
+    <color name="icon">#6B7280</color>
+    <!-- 列表左侧的优先级色条 -->
+    <color name="prio_bar_min">#C4C8CF</color>
+    <color name="prio_bar_low">#89B4FA</color>
+    <color name="prio_bar_normal">#F4C8A1</color>
+    <color name="prio_bar_high">#F1948A</color>
 </resources>
